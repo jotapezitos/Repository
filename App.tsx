@@ -80,7 +80,7 @@ const App: React.FC = () => {
     setMasterKey('');
     setUser(null);
     setIsPaid(false);
-    setView('landing');
+    navigate('/', { replace: true });
     setState({ incomes: [], expenses: [], savings: [], savingsGoals: [], initialBalance: 0, initialSavings: 0, notes: {} });
     hasLoadedRef.current = false;
     console.log('[DEBUG] State reset completed');
@@ -178,51 +178,33 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    console.log('[DEBUG] Load useEffect triggered. view:', view, 'user?.id:', user?.id, 'hasLoadedRef.current:', hasLoadedRef.current);
-    if (view !== 'app') {
-      console.log('[DEBUG] Load useEffect: view !== app, returning');
-      return;
-    }
+    // Nova lógica: só carrega dados se estiver na rota /app
+    if (location.pathname !== '/app') return;
     const local = storageService.load(masterKey) as AppState | 'locked';
-    console.log('[DEBUG] Load useEffect: loaded local data:', local === 'locked' ? 'locked' : (local ? Object.keys(local) : 'null'));
     if (local === 'locked') {
-      console.log('[DEBUG] Load useEffect: data is locked, setting isLocked to true');
       setIsLocked(true);
       return;
     }
     setIsLocked(false);
     if (user?.id && !hasLoadedRef.current) {
-      console.log('[DEBUG] Load useEffect: calling fetchFromCloud for user:', user.id);
       backendBridge.fetchFromCloud(user.id).then(cloud => {
-        console.log('[DEBUG] Load useEffect: fetchFromCloud resolved with:', cloud ? Object.keys(cloud) : null);
         cloud && setState(cloud as any);
-      }).catch((e) => {
-        console.warn("Fallando sincronização cloud, usando dados locais.", e);
-      });
+      }).catch(() => {});
     } else if (local) {
-      console.log('[DEBUG] Load useEffect: using local data');
       setState(prev => ({ ...prev, ...local }));
-    } else {
-      console.log('[DEBUG] Load useEffect: no local data and no cloud fetch');
     }
     hasLoadedRef.current = true;
-  }, [masterKey, view, user?.id]);
+  }, [masterKey, user?.id, location.pathname]);
 
   useEffect(() => {
-    console.log('[DEBUG] Sync useEffect triggered. isLocked:', isLocked, 'hasLoadedRef.current:', hasLoadedRef.current, 'view:', view, 'user?.id:', user?.id);
-    if (!isLocked && hasLoadedRef.current && view === 'app') {
-      console.log('[DEBUG] Saving to localStorage and syncing to cloud');
+    // Nova lógica: só sincroniza se estiver na rota /app
+    if (!isLocked && hasLoadedRef.current && location.pathname === '/app') {
       storageService.save(state, masterKey);
       if (user?.id) {
-        console.log('[DEBUG] Calling backendBridge.syncToCloud');
         backendBridge.syncToCloud(state, user.id);
-      } else {
-        console.log('[DEBUG] No user.id, skipping cloud sync');
       }
-    } else {
-      console.log('[DEBUG] Skipping sync: conditions not met');
     }
-  }, [state, masterKey, isLocked, view, user?.id]);
+  }, [state, masterKey, isLocked, user?.id, location.pathname]);
 
   const projection = useMemo(() => {
     if (isLocked) return [];
